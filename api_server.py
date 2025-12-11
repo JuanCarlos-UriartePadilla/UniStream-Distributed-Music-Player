@@ -11,20 +11,17 @@ from googleapiclient.discovery import build
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-# Tu motor de seguridad propio
 from secure_storage import SecureStorage
 
 app = Flask(__name__)
 CORS(app)
 
-# ==============================================================================
-# ⚠️ TUS CLAVES REALES (Recuperadas de tu imagen)
-# ==============================================================================
+# --------------------------------claves de api--------------------------------
 SPOTIFY_CLIENT_ID = '6f892d7154054c2a819871f713d532df'
 SPOTIFY_CLIENT_SECRET = '625be9de16194c829771e0ad4ffd49e1'
 YOUTUBE_API_KEY = 'AIzaSyCmt2upKbYCJlmYZ_M0hcEFOPtLiteOkbU'
 GOOGLE_CLIENT_ID = "118135224266-mfedhskg49toj900algmn1qlop3nf619.apps.googleusercontent.com"
-# ==============================================================================
+# ------------------------------------------------------------------------------
 
 # --- INICIALIZACION ---
 db = SecureStorage()
