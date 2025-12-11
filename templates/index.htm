@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <title>UniStream Social</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        .container { max-width: 700px; margin: auto; }
+        
+        /* Controles */
+        input, select { padding: 10px; border-radius: 15px; border: none; background: #333; color: white; margin-bottom: 5px; outline: none;}
+        button { padding: 8px 15px; border-radius: 15px; border: none; background: #1DB954; color: white; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        button:hover { background: #1ed760; transform: scale(1.05); }
+        
+        /* Variantes de Botones */
+        button.danger { background: #e91e63; margin-left: 10px; }
+        button.secondary { background: #555; }
+        button.social { background: #2196F3; } /* Azul para comunidad */
+        button.outline { background: transparent; border: 1px solid #1DB954; color: #1DB954; }
+
+        /* Paneles */
+        #userPanel { display: none; background: #1e1e1e; padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #333; }
+        .card { background: #2a2a2a; padding: 10px; border-radius: 10px; text-align: left; margin-bottom: 10px;}
+        
+        /* Biblioteca */
+        #library { display: none; margin-top: 20px; text-align: left; background: #111; padding: 10px; border-radius: 10px;}
+        .lib-item { background: #222; padding: 10px; margin-bottom: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;}
+        .lib-item:hover { background: #2a2a2a; }
+        .lib-active { border: 1px solid #1DB954; background: #1a2e1f; } 
+        
+        /* Resultados */
+        #result { display: none; background: #181818; padding: 20px; border-radius: 15px; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .song-header { display: flex; align-items: center; gap: 15px; text-align: left; margin-bottom: 15px;}
+        .song-header img { width: 80px; height: 80px; border-radius: 10px; }
+        
+        #userActions { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; }
+        
+        /* Video */
+        .video-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 15px; margin-top: 15px; background: #000;}
+        #player { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #1DB954; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="g_id_signin" data-type="standard" data-theme="filled_black"></div>
+        <div id="userInfo" style="display: none; margin-bottom: 10px;">
+            <h3 style="color: #1DB954; margin:0;" id="userName">Usuario</h3>
+            <small style="color: #777;">Conectado • HDFS Cluster</small>
+        </div>
+
+        <div id="userPanel">
+            <div style="display: flex; gap: 10px;">
+                <div class="card" style="flex:1">
+                    <small style="color:#aaa;">📂 NUEVA PLAYLIST</small><br>
+                    <div style="display:flex; gap:5px; margin-top:5px;">
+                        <input type="text" id="playlistInput" placeholder="Nombre..." style="width: 100%; padding: 5px;">
+                        <button class="secondary" onclick="crearPlaylist()">+</button>
+                    </div>
+                </div>
+                <div class="card" style="flex:1; display: flex; flex-direction: column; justify-content: center; gap: 5px;">
+                    <button onclick="verPlaylists()" style="background: #333; font-size: 13px;">📂 Mis Playlists</button>
+                    <button onclick="verFavoritos()" style="background: #333; font-size: 13px;">❤️ Mis Favoritos</button>
+                    <button onclick="verComunidad()" class="social" style="font-size: 13px;">🌍 Explorar (Comunidad)</button>
+                </div>
+            </div>
+            
+            <div id="library">
+                <h4 id="libTitle" style="border-bottom: 1px solid #333; margin-top:0; padding-bottom: 5px;">Biblioteca</h4>
+                <div id="playAllContainer"></div>
+                <div id="libContent"></div>
+            </div>
+        </div>
+        
+        <h1>🎵 UniStream</h1>
+        
+        <div style="display: flex; gap: 5px; justify-content: center;">
+            <input type="text" id="searchInput" placeholder="Buscar canción..." style="width: 60%;" onkeypress="handleEnter(event)">
+            <button onclick="buscarCancion()">🔍</button>
+        </div>
+
+        <div class="loader" id="loader"></div>
+
+        <div id="result">
+            <div class="song-header">
+                <img id="albumCover" src="" alt="Album">
+                <div style="flex-grow: 1;">
+                    <h3 id="trackName" style="margin: 0;">Canción</h3>
+                    <p id="artistName" style="margin: 0; color: #bbb; font-size: 14px;">Artista</p>
+                    <p id="queueStatus" style="font-size: 11px; color: #1DB954; margin: 5px 0 0 0; display:none;">Reproduciendo lista...</p>
+                </div>
+                <button id="btnNext" onclick="playNextSong()" style="background: #333; display:none; height: 40px;">⏭️</button>
+            </div>
+
+            <div class="video-container" id="ytContainer">
+                <div id="player"></div>
+            </div>
+
+            <div id="userActions" class="actions">
+                <button id="btnFav" class="outline" onclick="agregarFavorito()">❤️ Favoritos</button>
+                <div style="background: #333; padding: 5px 10px; border-radius: 20px; display: flex; align-items: center; gap: 5px;">
+                    <select id="playlistSelect" style="margin:0; padding: 5px; font-size:12px;">
+                        <option value="">Cargando...</option>
+                    </select>
+                    <button class="secondary" onclick="agregarAPlaylist()" style="padding: 5px 10px;">+</button>
+                </div>
+            </div>
+            <p id="guestMsg" style="color: #555; font-size: 12px; margin-top: 10px;">Inicia sesión para guardar canciones.</p>
+        </div>
+
+        <div id="g_id_onload"
+            data-client_id="118135224266-mfedhskg49toj900algmn1qlop3nf619.apps.googleusercontent.com"
+            data-callback="handleCredentialResponse"
+            data-auto_select="false">
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "/api";
+        let currentUserEmail = null;
+        let currentSongData = null;
+        
+        let player;
+        let playbackQueue = []; 
+        let currentQueueIndex = 0;
+
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%', width: '100%', videoId: '',
+                playerVars: { 'autoplay': 1, 'controls': 1 },
+                events: { 'onStateChange': onPlayerStateChange }
+            });
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === 0) { playNextSong(); }
+        }
+
+        function cargarCola(canciones, indexInicio = 0) {
+            playbackQueue = canciones;
+            currentQueueIndex = indexInicio;
+            reproducirIndiceActual();
+        }
+
+        function playNextSong() {
+            if (currentQueueIndex < playbackQueue.length - 1) {
+                currentQueueIndex++;
+                reproducirIndiceActual();
+            } else { alert("Fin de la lista."); }
+        }
+
+        function reproducirIndiceActual() {
+            const song = playbackQueue[currentQueueIndex];
+            if(!song) return;
+            mostrarCancionEnUI(song);
+            if(player && player.loadVideoById) {
+                player.loadVideoById(song.video_id || song.youtube.video_id);
+            }
+            resaltarCancionActiva(song.cancion_id || song.id);
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').scrollIntoView({behavior: "smooth"});
+        }
+
+        function mostrarCancionEnUI(songObj) {
+            const name = songObj.nombre || songObj.name;
+            const artist = songObj.artista || songObj.artist;
+            const img = songObj.image || "https://via.placeholder.com/150/000000/FFFFFF/?text=Music"; 
+            const vid = songObj.video_id || (songObj.youtube ? songObj.youtube.video_id : null);
+
+            document.getElementById('trackName').innerText = name;
+            document.getElementById('artistName').innerText = artist;
+            document.getElementById('albumCover').src = img;
+            
+            currentSongData = {
+                id: songObj.cancion_id || songObj.id,
+                name: name, artist: artist, image: img,
+                youtube: { video_id: vid }
+            };
+            
+            if(playbackQueue.length > 1) {
+                document.getElementById('btnNext').style.display = 'block';
+                document.getElementById('queueStatus').style.display = 'block';
+                document.getElementById('queueStatus').innerText = `Reproduciendo ${currentQueueIndex + 1} de ${playbackQueue.length}`;
+            } else {
+                document.getElementById('btnNext').style.display = 'none';
+                document.getElementById('queueStatus').style.display = 'none';
+            }
+        }
+
+        function handleEnter(e) { if(e.key === 'Enter') buscarCancion(); }
+
+        async function buscarCancion(queryOverride) {
+            const query = queryOverride || document.getElementById('searchInput').value;
+            if(!query) return alert("Escribe algo...");
+
+            document.getElementById('loader').style.display = 'block';
+            
+            try {
+                const res = await fetch(`${API_URL}/search?q=${query}`);
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+
+                data.video_id = data.youtube.video_id;
+                cargarCola([data], 0);
+                if(currentUserEmail) cargarDropdownPlaylists();
+
+            } catch (e) { alert("Error: " + e.message); }
+            finally { document.getElementById('loader').style.display = 'none'; }
+        }
+
+        // --- VISTAS BIBLIOTECA ---
+        
+        async function verFavoritos() {
+            cargarVistaLibreria("Mis Favoritos", `${API_URL}/favoritos?usuario=${currentUserEmail}`);
+        }
+
+        async function verPlaylists() {
+            document.getElementById('library').style.display = 'block';
+            document.getElementById('libTitle').innerText = "Mis Playlists";
+            document.getElementById('playAllContainer').innerHTML = "";
+            
+            const res = await fetch(`${API_URL}/playlists?usuario=${currentUserEmail}`);
+            const data = await res.json();
+            
+            let html = "";
+            if(data.length === 0) html = "<p style='color:#777'>Sin playlists.</p>";
+            data.forEach(l => {
+                // Boton borrar playlist a la derecha
+                html += `
+                <div class="lib-item">
+                    <div onclick="verCancionesDeLista('${l.nombre}', '${l.usuario}')" style="cursor:pointer; flex-grow:1;">
+                        <strong>📂 ${l.nombre}</strong>
+                    </div>
+                    <button class="danger" onclick="eliminarPlaylist('${l.nombre}')" title="Borrar Lista">🗑️</button>
+                </div>`;
+            });
+            document.getElementById('libContent').innerHTML = html;
+        }
+
+        // MODO COMUNIDAD (COMPARTIR)
+        async function verComunidad() {
+            document.getElementById('library').style.display = 'block';
+            document.getElementById('libTitle').innerText = "🌍 Comunidad (Listas de otros)";
+            document.getElementById('playAllContainer').innerHTML = "";
+            
+            // Pedimos playlists con modo=comunidad
+            const res = await fetch(`${API_URL}/playlists?usuario=${currentUserEmail}&modo=comunidad`);
+            const data = await res.json();
+            
+            let html = "";
+            if(data.length === 0) html = "<p style='color:#777'>Nadie ha compartido listas aún.</p>";
+            
+            data.forEach(l => {
+                // Aqui NO ponemos boton de borrar porque no son mias
+                html += `
+                <div class="lib-item" onclick="verCancionesDeLista('${l.nombre}', '${l.usuario}')" style="cursor:pointer;">
+                    <div>
+                        <strong>📂 ${l.nombre}</strong><br>
+                        <small style="color:#2196F3">De: ${l.usuario.split('@')[0]}</small>
+                    </div>
+                    <span>👁️</span>
+                </div>`;
+            });
+            document.getElementById('libContent').innerHTML = html;
+        }
+
+        // Ver canciones (Soporta listas mias y de otros)
+        async function verCancionesDeLista(nombreLista, duenoLista) {
+            const esMia = duenoLista === currentUserEmail;
+            
+            cargarVistaLibreria(
+                esMia ? nombreLista : `🌍 ${nombreLista} (de ${duenoLista.split('@')[0]})`, 
+                `${API_URL}/playlist/items?usuario=${duenoLista}&nombre_lista=${nombreLista}`, 
+                esMia ? nombreLista : null // Si no es mia, paso null para que no salga boton borrar cancion
+            );
+        }
+
+        async function cargarVistaLibreria(titulo, url, nombreListaParaBorrar = null) {
+            document.getElementById('library').style.display = 'block';
+            const headerHtml = `<button onclick="verPlaylists()" style="background:#444; padding:5px 10px; margin-right:10px;">⬅</button> ${titulo}`;
+            document.getElementById('libTitle').innerHTML = headerHtml;
+            document.getElementById('libContent').innerHTML = "Cargando...";
+
+            try {
+                const res = await fetch(url);
+                const canciones = await res.json();
+                window.tempListCache = canciones;
+
+                if(canciones.length > 0) {
+                    document.getElementById('playAllContainer').innerHTML = `<button class="play-all" onclick="iniciarReproduccionListaCompleta()">▶️ REPRODUCIR LISTA COMPLETA</button>`;
+                } else {
+                    document.getElementById('playAllContainer').innerHTML = "";
+                }
+
+                let html = "";
+                if(canciones.length === 0) html = "<p style='color:#777; padding:10px;'>Lista vacía.</p>";
+                
+                canciones.forEach((c, index) => {
+                    // Boton borrar solo si es mi lista o favoritos
+                    let deleteBtn = "";
+                    if(nombreListaParaBorrar) {
+                        deleteBtn = `<button class="danger" onclick="borrarDePlaylist(event, '${c.cancion_id}', '${nombreListaParaBorrar}')">🗑️</button>`;
+                    } else if(titulo === "Mis Favoritos") {
+                        deleteBtn = `<button class="danger" onclick="borrarDeFav(event, '${c.cancion_id}')">🗑️</button>`;
+                    }
+
+                    html += `
+                    <div id="song-${c.cancion_id || c.id}" class="lib-item" onclick="reproducirDesdeClick(${index})">
+                        <div style="flex-grow:1; cursor:pointer;">
+                            <strong style="font-size:14px;">🎵 ${c.nombre}</strong><br>
+                            <small style="color:#aaa;">${c.artista}</small>
+                        </div>
+                        ${deleteBtn}
+                    </div>`;
+                });
+                document.getElementById('libContent').innerHTML = html;
+            } catch(e) { console.error(e); }
+        }
+
+        function iniciarReproduccionListaCompleta() {
+            if(window.tempListCache && window.tempListCache.length > 0) {
+                cargarCola(window.tempListCache, 0);
+            }
+        }
+
+        function reproducirDesdeClick(index) {
+            if(window.tempListCache) {
+                cargarCola(window.tempListCache, index);
+            }
+        }
+        
+        function resaltarCancionActiva(id) {
+            const anteriores = document.getElementsByClassName('lib-active');
+            for(let el of anteriores) el.classList.remove('lib-active');
+            const row = document.getElementById(`song-${id}`);
+            if(row) row.classList.add('lib-active');
+        }
+
+        async function handleCredentialResponse(response) {
+            try {
+                const res = await fetch(`${API_URL}/login`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: response.credential })
+                });
+                const data = await res.json();
+                if(data.status === "success") {
+                    currentUserEmail = data.user.email;
+                    document.querySelector('.g_id_signin').style.display = 'none';
+                    document.getElementById('userInfo').style.display = 'block';
+                    document.getElementById('userName').innerText = data.user.nombre;
+                    document.getElementById('userPanel').style.display = 'block';
+                    document.getElementById('userActions').style.display = 'flex';
+                    document.getElementById('guestMsg').style.display = 'none';
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function crearPlaylist() {
+            const nombre = document.getElementById('playlistInput').value;
+            if(!nombre) return;
+            const res = await fetch(`${API_URL}/playlists`, {
+                method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ nombre: nombre, usuario: currentUserEmail })
+            });
+            const data = await res.json();
+            if(data.status === "error") alert(data.msg);
+            else { alert("Playlist Creada"); document.getElementById('playlistInput').value = ""; verPlaylists(); }
+        }
+
+        async function eliminarPlaylist(nombre) {
+            if(!confirm("¿Borrar la playlist completa?")) return;
+            await fetch(`${API_URL}/playlists?usuario=${currentUserEmail}&nombre=${nombre}`, { method: 'DELETE' });
+            verPlaylists();
+        }
+
+        async function agregarFavorito() {
+            if(!currentSongData) return;
+            const res = await fetch(`${API_URL}/favoritos`, {
+                method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ 
+                    usuario: currentUserEmail, cancion_id: currentSongData.id, 
+                    nombre: currentSongData.name, artista: currentSongData.artist,
+                    video_id: currentSongData.youtube.video_id 
+                })
+            });
+            const data = await res.json();
+            if(data.status === "warn") alert("⚠️ Ya está en Favoritos");
+            else alert("❤️ Guardado");
+        }
+
+        async function agregarAPlaylist() {
+            const nombreLista = document.getElementById('playlistSelect').value;
+            const res = await fetch(`${API_URL}/playlist/items`, {
+                method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    usuario: currentUserEmail, playlist_nombre: nombreLista,
+                    cancion_id: currentSongData.id, nombre: currentSongData.name, artista: currentSongData.artist,
+                    video_id: currentSongData.youtube.video_id
+                })
+            });
+            const data = await res.json();
+            if(data.status === "warn") alert("⚠️ Ya está en la lista " + nombreLista);
+            else alert("✅ Agregada");
+        }
+
+        async function cargarDropdownPlaylists() {
+            const select = document.getElementById('playlistSelect');
+            const res = await fetch(`${API_URL}/playlists?usuario=${currentUserEmail}`);
+            const listas = await res.json();
+            select.innerHTML = "";
+            listas.forEach(l => select.innerHTML += `<option value="${l.nombre}">${l.nombre}</option>`);
+        }
+
+        async function borrarDePlaylist(e, id, lista) {
+            e.stopPropagation();
+            if(!confirm("¿Borrar?")) return;
+            await fetch(`${API_URL}/playlist/items?usuario=${currentUserEmail}&nombre_lista=${lista}&cancion_id=${id}`, { method: 'DELETE' });
+            verCancionesDeLista(lista, currentUserEmail);
+        }
+
+        async function borrarDeFav(e, id) {
+            e.stopPropagation();
+            if(!confirm("¿Borrar de favoritos?")) return;
+            await fetch(`${API_URL}/favoritos?usuario=${currentUserEmail}&cancion_id=${id}`, { method: 'DELETE' });
+            verFavoritos();
+        }
+    </script>
+</body>
+</html>
